@@ -2,9 +2,12 @@ package org.harvan.example.springbootwebflux.controller;
 
 
 import static reactor.core.scheduler.Schedulers.elastic;
+import static reactor.core.scheduler.Schedulers.parallel;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.harvan.example.springbootwebflux.repository.SampleRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
@@ -14,7 +17,11 @@ import reactor.core.publisher.Mono;
 public class SampleController {
 
   private static final Logger LOGGER = LogManager.getLogger(SampleController.class);
+
   private static final String OK = "OK.";
+
+  @Autowired
+  private SampleRepository sampleRepository;
 
   private void sleep(long second) {
     try {
@@ -94,19 +101,16 @@ public class SampleController {
   @GetMapping("/elasticSubscribeOnPublishOnElastic/{sleepInSecond}")
   public Mono<String> elasticSubscribeOnPublishOnElastic(@PathVariable long sleepInSecond) {
     return getPublisher(sleepInSecond
-//    ).publishOn(elastic()
-    ).subscribeOn(elastic()
-    ).flatMap(s -> innerMonoDirect().map(s1 -> {
-      LOGGER.debug(() -> "Map external innerMonoDirect...");
-      return s + s1;
-    })).flatMap(s -> {
-      sleep(sleepInSecond);
-      LOGGER.debug(() -> "Map elasticSubscribeOnPublishOnElastic");
-      return innerMonoDefer().map(s1 -> {
-        LOGGER.debug(() -> "Map external innerMonoDefer...");
-        return s + s1;
-      });
-    }).doOnSubscribe(subscription -> LOGGER.debug(() -> "Invoke elasticSubscribeOnPublishOnElastic")
-    );
+    ).publishOn(elastic()).flatMap(s -> sampleRepository.findSlowData(sleepInSecond)
+    ).doOnSubscribe(subscription -> LOGGER.debug(() -> "Invoke elasticSubscribeOnPublishOnElastic")
+    ).subscribeOn(elastic());
+  }
+
+  @GetMapping("/elasticSubscribeOnPublishOnParallel/{sleepInSecond}")
+  public Mono<String> elasticSubscribeOnPublishOnParallel(@PathVariable long sleepInSecond) {
+    return getPublisher(sleepInSecond
+    ).publishOn(parallel()).flatMap(s -> sampleRepository.findSlowData(sleepInSecond)
+    ).doOnSubscribe(subscription -> LOGGER.debug(() -> "Invoke elasticSubscribeOnPublishOnParallel")
+    ).subscribeOn(elastic());
   }
 }
